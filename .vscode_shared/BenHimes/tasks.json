@@ -7,7 +7,7 @@
             "cuda_dir": "/groups/cryoadmin/software/CUDA-TOOLKIT/cuda_11.3.1",
             "wx_dir":"/groups/cryoadmin/software/WX/wx_static_3.05_",
             "build_dir": "${workspaceFolder}/build",
-            "compile_cores": "24"
+            "compile_cores": "48"
         }
     },
     "tasks": [
