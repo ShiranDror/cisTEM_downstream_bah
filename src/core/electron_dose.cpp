@@ -75,6 +75,9 @@ void ElectronDose::CalculateDoseFilterAs1DArray(Image *ref_image, float *filter_
 	float x;
 	float y;
 	float z;
+	// const float C = critical_dose_c * voltage_scaling_factor;
+	// const float B = critical_dose_b * -0.5f;
+	// const float A = critical_dose_a * voltage_scaling_factor / powf(pixel_size, B);
 
 	int array_counter = 0;
 
@@ -87,21 +90,24 @@ void ElectronDose::CalculateDoseFilterAs1DArray(Image *ref_image, float *filter_
 		{
 			y = ref_image->ReturnFourierLogicalCoordGivenPhysicalCoord_Y(j) * ref_image->fourier_voxel_size_y;
 			y *= y;
-
+			// y += z;
 			for (i = 0; i <= ref_image->physical_upper_bound_complex_x; i++)
 			{
 				if (i == 0 && j == 0) filter_array[array_counter] = 1;
 				else
 				{
 					x = i * ref_image->fourier_voxel_size_x;
+					// filter_array[array_counter] = ReturnDoseFilter(dose_finish, C + A*powf(x*x + y,B)); // This knocks about 15% off the total time
 					filter_array[array_counter] = ReturnDoseFilter(dose_finish, ReturnCriticalDose(sqrtf(x*x + y + z) / pixel_size));
+
+
 				}
 
 				array_counter++;
 			}
 		}
 	}
-
+		// filter_array[0] = 1; // This (without if(i == 0)) is about another 50 % faster))
 }
 
 void ElectronDose::CalculateCummulativeDoseFilterAs1DArray(Image *ref_image, float *filter_array, float dose_start, float dose_finish)
