@@ -1,3 +1,12 @@
+// To optionally disable things too complicated for macros and ensure no function calls are made in non-enabled sections.
+// In the global declarative region control via
+// #ifdef MyFlag
+// # using cistem_my_namespace
+// #else
+// # using cistem_my_namepsace_noop
+// #endif
+namespace cistem_timer {};
+namespace cistem_timer_noop {};
 typedef struct Peak {
   float x;
   float y;

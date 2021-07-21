@@ -1,6 +1,19 @@
 
 #include "core_headers.h"
 
+namespace cistem_timer_noop {
+
+// All the other methods are defined as inline in the header to ensure they are optimized out.
+StopWatch::StopWatch() {
+	// do nothing
+}	
+StopWatch::~StopWatch() {
+	// do nothing
+}
+
+}
+
+namespace cistem_timer {
 
 StopWatch::StopWatch()
 {
@@ -33,7 +46,7 @@ void StopWatch::start(std::string name)
 	// Record overhead.
 	event_times[0] = std::chrono::high_resolution_clock::now();
 	// Check to see if the event has been encountered. If not, first create it and set elapsed time to zero. Return the events index.
-	check_for_name(name);
+	check_for_name_and_set_current_idx(name);
 	// Record the start time for the event.
 	if (! is_new)
 	{
@@ -49,13 +62,13 @@ void StopWatch::lap(std::string name)
 	// Record overhead.
 	event_times[0] = std::chrono::high_resolution_clock::now();
 	// Check to see if the event has been encountered. If not, first create it and set elapsed time to zero. Return the events index.
-	check_for_name(name);
+	check_for_name_and_set_current_idx(name);
 	if (is_new) { wxPrintf("a new event name was encountered when calling Stopwatch::lap(%s) at line %d in file %s\n", name, __LINE__, __FILE__); exit(-1); }
 	elapsed_times[current_index] += stop(time_fmt, current_index);
 	elapsed_times[0] += stop(time_fmt, 0);
 }
 
-void StopWatch::check_for_name(std::string name)
+void StopWatch::check_for_name_and_set_current_idx(std::string name)
 {
 	// Either add to an existing event, or create a new one.
 	for (size_t iName = 0; iName < event_names.size(); iName++)
@@ -87,8 +100,8 @@ void StopWatch::print_times()
 	
 	this->lap("Overall");
 	
-	uint64 total_time = 0;
-	uint64 missed_time = 0;
+	uint64_t total_time = 0;
+	uint64_t missed_time = 0;
 	// It would be nice to have a variable option for printing the time format in a given rep different from what was recorded.
 	std::string time_string;
 	switch (time_fmt)
@@ -162,7 +175,7 @@ void StopWatch::print_times()
 void StopWatch::convert_time(uint64_t microsec)
 {
 	// Time is stored in microseconds
-	uint64 time_rem;
+	uint64_t time_rem;
 	time_rem = microsec / 3600000000;
 	hrminsec[0] = time_rem;
 
@@ -230,3 +243,4 @@ uint64_t StopWatch::ticks(TimeFormat T, const time_pt& start_time, const time_pt
 
 }
 
+}
