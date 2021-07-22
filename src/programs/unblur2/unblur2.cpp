@@ -24,7 +24,7 @@ UnBlurApp : public MyApp
 
 };
 
-void unblur_refine_alignment(Image *input_stack, int number_of_images, int max_iterations, float unitless_bfactor, bool mask_central_cross, int width_of_vertical_line, int width_of_horizontal_line, float inner_radius_for_peak_search, float outer_radius_for_peak_search, float max_shift_convergence_threshold, float pixel_size, int number_of_frames_for_running_average, int savitzy_golay_window_size, int max_threads, float *x_shifts, float *y_shifts);
+void unblur_refine_alignment(Image *input_stack, int number_of_images, int max_iterations, float unitless_bfactor, bool mask_central_cross, int width_of_vertical_line, int width_of_horizontal_line, float inner_radius_for_peak_search, float outer_radius_for_peak_search, float max_shift_convergence_threshold, float pixel_size, int number_of_frames_for_running_average, int savitzy_golay_window_size, int max_threads, float *x_shifts, float *y_shifts, StopWatch& profile_timing_refinement_method);
 
 IMPLEMENT_APP(UnBlurApp)
 
@@ -597,13 +597,13 @@ bool UnBlurApp::DoCalculation()
 	// do the initial refinement (only 1 round - with the min shift)
 	unblur_timing.start("initial refine"); profile_timing.start("initial refine");
 	//SendInfo(wxString::Format("Doing first alignment on %s\n",input_filename));
-	unblur_refine_alignment(image_stack, number_of_input_images, 1, unitless_bfactor, should_mask_central_cross, vertical_mask_size, horizontal_mask_size, min_shift_in_pixels, max_shift_in_pixels, termination_threshold_in_pixels, pixel_size, number_of_frames_for_running_average, myroundint(5.0f / exposure_per_frame), max_threads, x_shifts, y_shifts);
+	unblur_refine_alignment(image_stack, number_of_input_images, 1, unitless_bfactor, should_mask_central_cross, vertical_mask_size, horizontal_mask_size, min_shift_in_pixels, max_shift_in_pixels, termination_threshold_in_pixels, pixel_size, number_of_frames_for_running_average, myroundint(5.0f / exposure_per_frame), max_threads, x_shifts, y_shifts, profile_timing_refinement_method);
 	unblur_timing.lap("initial refine"); profile_timing.lap("initial refine");
 
 	// now do the actual refinement..
 	unblur_timing.start("main refine"); profile_timing.start("main refine");
 	//SendInfo(wxString::Format("Doing main alignment on %s\n",input_filename));
-	unblur_refine_alignment(image_stack, number_of_input_images, max_iterations, unitless_bfactor, should_mask_central_cross, vertical_mask_size, horizontal_mask_size, 0., max_shift_in_pixels, termination_threshold_in_pixels, pixel_size, number_of_frames_for_running_average, myroundint(5.0f / exposure_per_frame), max_threads, x_shifts, y_shifts);
+	unblur_refine_alignment(image_stack, number_of_input_images, max_iterations, unitless_bfactor, should_mask_central_cross, vertical_mask_size, horizontal_mask_size, 0., max_shift_in_pixels, termination_threshold_in_pixels, pixel_size, number_of_frames_for_running_average, myroundint(5.0f / exposure_per_frame), max_threads, x_shifts, y_shifts, profile_timing_refinement_method);
 	unblur_timing.lap("main refine"); profile_timing.lap("main refine");
 
 
@@ -642,7 +642,7 @@ bool UnBlurApp::DoCalculation()
 		// do the refinement..
 		//SendInfo(wxString::Format("Doing final unbinned alignment on %s\n",input_filename));
 		profile_timing.start("final refine");
-		unblur_refine_alignment(image_stack, number_of_input_images, max_iterations, unitless_bfactor, should_mask_central_cross, vertical_mask_size, horizontal_mask_size, 0., max_shift_in_pixels, termination_threshold_in_pixels, output_pixel_size, number_of_frames_for_running_average, myroundint(5.0f / exposure_per_frame), max_threads, x_shifts, y_shifts);
+		unblur_refine_alignment(image_stack, number_of_input_images, max_iterations, unitless_bfactor, should_mask_central_cross, vertical_mask_size, horizontal_mask_size, 0., max_shift_in_pixels, termination_threshold_in_pixels, output_pixel_size, number_of_frames_for_running_average, myroundint(5.0f / exposure_per_frame), max_threads, x_shifts, y_shifts, profile_timing_refinement_method);
 		profile_timing.lap("final refine");
 		// if allocated delete the binned stack, and swap the unbinned to image_stack - so that no matter what is happening we can just use image_stack
 
@@ -891,7 +891,7 @@ bool UnBlurApp::DoCalculation()
 			temp_float[0] = x_shifts[image_counter] * output_pixel_size;
 			temp_float[1] = y_shifts[image_counter] * output_pixel_size;
 			shifts_file.WriteLine(temp_float);
-			wxPrintf("image #%li = %f, %f\n", image_counter, result_array[image_counter], result_array[image_counter + number_of_input_images]);
+			// wxPrintf("image #%li = %f, %f\n", image_counter, result_array[image_counter], result_array[image_counter + number_of_input_images]);
 		}
 	}
 	else
@@ -919,12 +919,16 @@ bool UnBlurApp::DoCalculation()
 	profile_timing.lap("cleanup");
 	unblur_timing.print_times();
 	profile_timing.print_times();
+	profile_timing_refinement_method.print_times();
 
 	return true;
 }
 
-void unblur_refine_alignment(Image *input_stack, int number_of_images, int max_iterations, float unitless_bfactor, bool mask_central_cross, int width_of_vertical_line, int width_of_horizontal_line, float inner_radius_for_peak_search, float outer_radius_for_peak_search, float max_shift_convergence_threshold, float pixel_size, int number_of_frames_for_running_average, int savitzy_golay_window_size, int max_threads, float *x_shifts, float *y_shifts)
+void unblur_refine_alignment(Image *input_stack, int number_of_images, int max_iterations, float unitless_bfactor, bool mask_central_cross, int width_of_vertical_line, int width_of_horizontal_line, float inner_radius_for_peak_search, float outer_radius_for_peak_search, float max_shift_convergence_threshold, float pixel_size, int number_of_frames_for_running_average, int savitzy_golay_window_size, int max_threads, float *x_shifts, float *y_shifts, StopWatch& profile_timing_refinement_method)
 {
+
+	profile_timing_refinement_method.mark_entry_or_exit_point();
+
 	long pixel_counter;
 	long image_counter;
 	int running_average_counter;
@@ -963,7 +967,7 @@ void unblur_refine_alignment(Image *input_stack, int number_of_images, int max_i
 	sum_of_images.Allocate(input_stack[0].logical_x_dimension, input_stack[0].logical_y_dimension, false);
 	sum_of_images.SetToConstant(0.0);
 
-
+	profile_timing_refinement_method.start("allocate running average");
 	if (number_of_frames_for_running_average > 1)
 	{
 		running_average_stack = new Image[number_of_images];
@@ -976,17 +980,18 @@ void unblur_refine_alignment(Image *input_stack, int number_of_images, int max_i
 		stack_for_alignment = running_average_stack;
 	}
 	else stack_for_alignment = input_stack;
+	profile_timing_refinement_method.lap("allocate running average");
 
 
 	// prepare the initial sum
-
+	profile_timing_refinement_method.start("prepare initial sum");
 	for (image_counter = 0; image_counter < number_of_images; image_counter++)
 	{
 		sum_of_images.AddImage(&input_stack[image_counter]);
 		current_x_shifts[image_counter] = 0;
 		current_y_shifts[image_counter] = 0;
 	}
-
+	profile_timing_refinement_method.lap("prepare initial sum");
 	// perform the main alignment loop until we reach a max shift less than wanted, or max iterations
 
 	for (iteration_counter = 1; iteration_counter <= max_iterations; iteration_counter++)
@@ -1037,7 +1042,7 @@ void unblur_refine_alignment(Image *input_stack, int number_of_images, int max_i
 		for (image_counter = 0; image_counter < number_of_images; image_counter++)
 		{
 			// prepare the sum reference by subtracting out the current image, applying a bfactor and masking central cross
-
+			profile_timing_refinement_method.start("prepare sum");
 			sum_of_images_minus_current.CopyFrom(&sum_of_images);
 			sum_of_images_minus_current.SubtractImage(&stack_for_alignment[image_counter]);
 			sum_of_images_minus_current.ApplyBFactor(unitless_bfactor);
@@ -1046,22 +1051,25 @@ void unblur_refine_alignment(Image *input_stack, int number_of_images, int max_i
 			{
 				sum_of_images_minus_current.MaskCentralCross(width_of_vertical_line, width_of_horizontal_line);
 			}
-
+			profile_timing_refinement_method.lap("prepare sum");
 			// compute the cross correlation function and find the peak
-
+				profile_timing_refinement_method.start("compute cross correlation");
 		    sum_of_images_minus_current.CalculateCrossCorrelationImageWith(&stack_for_alignment[image_counter]);
+				profile_timing_refinement_method.lap("compute cross correlation");
+				profile_timing_refinement_method.start("find peak");
 		    my_peak = sum_of_images_minus_current.FindPeakWithParabolaFit(inner_radius_for_peak_search, outer_radius_for_peak_search);
-
+				profile_timing_refinement_method.lap("find peak");
 			// update the shifts..
 
 			current_x_shifts[image_counter] = my_peak.x;
 			current_y_shifts[image_counter] = my_peak.y;
 		}
-
+			profile_timing_refinement_method.start("deallocate sum minus");
 			sum_of_images_minus_current.Deallocate();
+			profile_timing_refinement_method.lap("deallocate sum minus");
 		} // end omp
 		// smooth the shifts
-
+		profile_timing_refinement_method.start("smooth shifts");
 		x_shifts_curve.ClearData();
 		y_shifts_curve.ClearData();
 
@@ -1110,7 +1118,7 @@ void unblur_refine_alignment(Image *input_stack, int number_of_images, int max_i
 			}
 
 		}
-
+		profile_timing_refinement_method.lap("smooth shifts");
 
 
 
@@ -1133,16 +1141,19 @@ void unblur_refine_alignment(Image *input_stack, int number_of_images, int max_i
 		#pragma omp parallel for default(shared) num_threads(max_threads) private(image_counter)
 		for (image_counter = 0; image_counter < number_of_images; image_counter++)
 		{
+			profile_timing_refinement_method.start("shift image");
 			input_stack[image_counter].PhaseShift(current_x_shifts[image_counter], current_y_shifts[image_counter], 0.0);
 
 			x_shifts[image_counter] += current_x_shifts[image_counter];
 			y_shifts[image_counter] += current_y_shifts[image_counter];
+			profile_timing_refinement_method.lap("shift image");
 		}
 
 		// check to see if the convergence criteria have been reached and return if so
 
 		if (iteration_counter >= max_iterations || max_shift <= max_shift_convergence_threshold)
 		{
+			profile_timing_refinement_method.start("cleanup");
 			wxPrintf("returning, iteration = %li, max_shift = %f\n", iteration_counter, max_shift);
 			delete [] current_x_shifts;
 			delete [] current_y_shifts;
@@ -1151,6 +1162,8 @@ void unblur_refine_alignment(Image *input_stack, int number_of_images, int max_i
 			{
 				delete [] running_average_stack;
 			}
+			profile_timing_refinement_method.lap("cleanup");
+			profile_timing_refinement_method.mark_entry_or_exit_point();
 			return;
 		}
 		else
@@ -1160,15 +1173,17 @@ void unblur_refine_alignment(Image *input_stack, int number_of_images, int max_i
 		}
 
 		// going to be doing another round so we need to make the new sum..
-
+		profile_timing_refinement_method.start("remake sum");
 		sum_of_images.SetToConstant(0.0);
 
 		for (image_counter = 0; image_counter < number_of_images; image_counter++)
 		{
 			sum_of_images.AddImage(&input_stack[image_counter]);
 		}
-
+		profile_timing_refinement_method.lap("remake sum");
 	}
+	profile_timing_refinement_method.mark_entry_or_exit_point();
+
 }
 
 

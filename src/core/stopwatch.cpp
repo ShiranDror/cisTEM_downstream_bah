@@ -22,6 +22,7 @@ StopWatch::StopWatch()
 	is_set_overall = false;
 	is_recording_measured_time = false;
 	is_recording_elapsed_time = false;
+	is_entry_point = true;
 	number_of_events_being_recorded = 0;
 	
 	current_index = (SpecialIDX)total_elapsed;
@@ -39,6 +40,7 @@ StopWatch::~StopWatch()
 {
 	// Do nothing;
 }
+
 
 void StopWatch::record_start(std::string name) 
 {
@@ -102,6 +104,31 @@ void StopWatch::record_measured()
 	}
 }
 
+void StopWatch::mark_entry_or_exit_point(bool threadsafe)
+{
+	if (threadsafe && ReturnThreadNumberOfCurrentThread() != 0) return;
+	if (is_entry_point)
+	{
+		// If we are already recording, we don't need to do anything, but that shouldn't happen'
+		if ( ! is_recording_elapsed_time )
+		{
+			if (! is_set_overall) is_set_overall = true;
+			record_elapsed();
+		}
+
+		is_entry_point = false;
+
+	}
+	else
+	{
+		// If we are not recording on an exit point, we have a problem.
+		if (! is_recording_elapsed_time) { wxPrintf("a exit point was encounterd with no elapsed time being recorded Stopwatch at line %d in file %s\n", __LINE__, __FILE__); exit(-1); }
+		record_elapsed();
+		is_entry_point = true;
+	}
+
+}
+
 void StopWatch::start(std::string name, bool threadsafe)
 {
 	// Typically we only want to track a single thread, which is default. Override this with threadsafe = false;
@@ -158,7 +185,7 @@ void StopWatch::print_times(bool threadsafe)
 {
 		// Typically we only want to track a single thread, which is default. Override this with threadsafe = false;
 	if (threadsafe && ReturnThreadNumberOfCurrentThread() != 0) return;
-	record_elapsed();
+	if (is_recording_elapsed_time) record_elapsed();
 	
 
 	// It would be nice to have a variable option for printing the time format in a given rep different from what was recorded.

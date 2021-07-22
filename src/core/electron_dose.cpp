@@ -90,7 +90,7 @@ void ElectronDose::CalculateDoseFilterAs1DArray(Image *ref_image, float *filter_
 		{
 			y = ref_image->ReturnFourierLogicalCoordGivenPhysicalCoord_Y(j) * ref_image->fourier_voxel_size_y;
 			y *= y;
-			// y += z;
+		  // y += z;
 			for (i = 0; i <= ref_image->physical_upper_bound_complex_x; i++)
 			{
 				if (i == 0 && j == 0) filter_array[array_counter] = 1;
@@ -107,7 +107,7 @@ void ElectronDose::CalculateDoseFilterAs1DArray(Image *ref_image, float *filter_
 			}
 		}
 	}
-		// filter_array[0] = 1; // This (without if(i == 0)) is about another 50 % faster))
+  // filter_array[0] = 1; // This (without if(i == 0)) is about another 50 % faster))
 }
 
 void ElectronDose::CalculateCummulativeDoseFilterAs1DArray(Image *ref_image, float *filter_array, float dose_start, float dose_finish)

@@ -19,8 +19,8 @@ public:
 	// dummy methods
 	inline void start(std::string name, bool thread_safe = true) {return;}
 	inline void lap(std::string name, bool thread_safe = true) {return;}
-	inline void print_times() {return;}
-	inline void mark_entry_or_exit_point( bool thread_safe = true) {return;}
+	inline void print_times(bool thread_safe = true) {return;}
+	inline void mark_entry_or_exit_point(bool thread_safe = true) {return;}
 
 };
 
@@ -47,7 +47,7 @@ public:
 	void print_times(bool  thread_safe = true);
 
 	// Start or pause the total elapsed time when passing a stopwatch pointer to a method. Place inside the method at the entry and exit point of the method call.
-	void mark_entry_or_exit_point();
+	void mark_entry_or_exit_point(bool thread_safe = true);
 
 
 
@@ -73,6 +73,7 @@ private:
 	bool is_set_overall;
 	bool is_recording_measured_time;
 	bool is_recording_elapsed_time;
+	bool is_entry_point;
 	TimeFormat time_fmt = MICROSECONDS;
 
 	uint64_t stop(TimeFormat T, int idx);
