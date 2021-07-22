@@ -311,4 +311,3 @@ uint64_t StopWatch::ticks(TimeFormat T, const time_pt& start_time, const time_pt
 
 }
 
-}
