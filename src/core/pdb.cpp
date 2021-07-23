@@ -4,7 +4,10 @@ WX_DEFINE_OBJARRAY(ArrayOfAtoms);
 WX_DEFINE_OBJARRAY(ArrayOfParticleTrajectories);
 //WX_DEFINE_OBJARRAY(ArrayOfParticleInstances);
 
-
+#include <gemmi/mmread.hpp>
+#include <gemmi/gz.hpp>
+#include <gemmi/model.hpp>
+#include <gemmi/resinfo.hpp>
 
 const double MIN_PADDING_Z    = 4;
 const int MAX_XY_DIMENSION = 4096*2;
@@ -118,7 +121,6 @@ PDB::PDB(wxString Filename, long wanted_access_type, float wanted_pixel_size, lo
 	this->MIN_PADDING_XY = minimum_paddeding_x_and_y;
 	this->MIN_THICKNESS  = minimum_thickness_z;
 
-
     SetEmpty();
 	this->pixel_size = wanted_pixel_size;
 	// The default is to not generate neighboring noise particles. This should probably be switched.
@@ -170,6 +172,9 @@ PDB::~PDB()
 
 void PDB::Open(wxString Filename, long wanted_access_type, long wanted_records_per_line)
 {
+
+
+
 	access_type = wanted_access_type;
 	records_per_line = wanted_records_per_line;
 	text_filename = Filename;
@@ -274,8 +279,6 @@ void PDB::Init()
 
 
 
-	if (access_type == OPEN_TO_READ)
-	{
 		wxString current_line;
 		wxString token;
 		double temp_double;
@@ -289,47 +292,43 @@ void PDB::Init()
 		float euler2;
 		float euler3; // from pdb
 
-
-		// After a phenix ADP refinement + Chimera selection and split, all ATOM --> HETATM. Quick hack to set this until I can figure out why. Generally speaking, this should be left as ATOM
-		wxString pdb_atom = "ATOM";
-
-		input_file_stream = new wxFileInputStream(text_filename);
-		input_text_stream = new wxTextInputStream(*input_file_stream);
-
-		if (input_file_stream->IsOk() == false)
-		{
-			MyPrintWithDetails("Attempt to access %s for reading failed\n",text_filename);
-			DEBUG_ABORT;
-		}
-
 		// work out the records per line and how many lines
 
 		this->number_of_lines = 0;
 		this->number_of_atoms = 0;
 
+		// After a phenix ADP refinement + Chimera selection and split, all ATOM --> HETATM. Quick hack to set this until I can figure out why. Generally speaking, this should be left as ATOM
+		wxString pdb_atom = "ATOM";
 
+	// test out gemmi
+	wxPrintf("did I get here, filename is %s?\n",text_filename.ToStdString());
+	wxFFileOutputStream output( stderr );
+	wxTextOutputStream cout( output );
+	cout << "Can I print anything?" ;
 
-		while (input_file_stream->Eof() == false)
+		auto st = gemmi::read_structure(gemmi::MaybeGzipped(text_filename.ToStdString()));
+
+		// I'm sure there is already something in GEMMI to do an iteration like this.
+		for (gemmi::Model& model : st.models)
 		{
-			current_line = input_text_stream->ReadLine();
-			current_line.Trim(false);
-
-			if (current_line.StartsWith("#") != true && current_line.StartsWith("C") != true && current_line.Length() > 0)
+			
+			for (gemmi::Chain& chain : model.chains)
 			{
-				number_of_lines++;
+					for (gemmi::Residue& res : chain.residues)
+					{
+							// For now, we only want ATOM 
+							if (res.het_flag == 'A')  // 'A' = ATOM, 'H' = HETATM, 0 = unspecified
+							{
+								number_of_atoms++;	
+							}
 
-				if (current_line.StartsWith(pdb_atom) == true)
-				{
-					number_of_atoms++;
-
-				}
-
+					}
 
 			}
 		}
 
 
-		// Only those atoms that are part of the target molecule
+		// Only those atoms that are part of the target molecule - TODO change the name ... they are all real
 		number_of_real_atoms = number_of_atoms;
 
 		// Copy every real atom into a noise atom
@@ -340,15 +339,10 @@ void PDB::Init()
 
 		wxPrintf("Max particles is %d here\n",max_number_of_noise_particles);
 		// If noie noise atoms, this will always equal number of atoms. Otherwise, number of atoms is at most this, and changes from particle to particle in the stack
-		number_of_real_and_noise_atoms = number_of_atoms;
+		number_of_real_and_noise_atoms = number_of_atoms + number_of_real_atoms;
 
 		wxPrintf("\nIn constructor real total current %ld %ld %ld\n", number_of_real_atoms,number_of_real_and_noise_atoms, number_of_atoms);
 
-		// records_per_line = current_records_per_line;
-
-		// rewind the file..
-
-		Rewind();
 
 		// Create the atom array, then loop back over the pdb to get the desired info.
 		Atom dummy_atom;
@@ -356,203 +350,186 @@ void PDB::Init()
 		my_atoms.Add(dummy_atom,number_of_real_and_noise_atoms);
 
 
-
-
-		while (input_file_stream->Eof() == false)
+		// I'm sure there is already something in GEMMI to do an iteration like this.
+		for (gemmi::Model& model : st.models)
 		{
-			current_line = input_text_stream->ReadLine();
-			current_line.Trim(false);
-
-			if (current_line.StartsWith(pdb_atom) == true && current_line.Length() > 0)
+			
+			for (gemmi::Chain& chain : model.chains)
 			{
+					for (gemmi::Residue& res : chain.residues)
+					{
+							// For now, we only want ATOM 
+							if (res.het_flag == 'A')  // 'A' = ATOM, 'H' = HETATM, 0 = unspecified
+							{
+								for (gemmi::Atom& atom : res.atoms) 
+								{
+									my_atoms.Item(current_atom_number).name =  wxString(atom.name);
+									my_atoms.Item(current_atom_number).is_real_particle = true;
 
-				wxString residue_name = current_line.Mid(RESIDUESTART,RESIDUELENGTH).Trim(true).Trim(false);
+									// in gemmi this is a signed char, consider using this as it is smaller and presumably more efficient
+									my_atoms.Item(current_atom_number).charge = float(atom.charge);
 
-				my_atoms.Item(current_atom_number).name =  current_line.Mid(NAMESTART,NAMELENGTH).Trim(true).Trim(false);
-				my_atoms.Item(current_atom_number).is_real_particle = true;
+									my_atoms.Item(current_atom_number).x_coordinate = float(atom.pos.x);
+									my_atoms.Item(current_atom_number).y_coordinate = float(atom.pos.y);
+									my_atoms.Item(current_atom_number).z_coordinate = float(atom.pos.z);
+									my_atoms.Item(current_atom_number).occupancy = atom.occ;
+									my_atoms.Item(current_atom_number).bfactor = atom.b_iso;
+									cout << "Element is " << atom.element.name() << "and el" << atom.element.ordinal() << '\n' ;
+									// my_atoms.Item(current_atom_number).atom_type = oxygen;
 
-				// Set all charge to zero - only override for Asp/Glu O that may be charged. Neutral at first in the simulation
-				my_atoms.Item(current_atom_number).charge = 0;
+									// TODO next, update my enums to use zero as X for unkown and match to those in gemmi/include/elem.hpp
 
-				if (this->IsAcidicOxygen(my_atoms.Item(current_atom_number).name))
-				{
-					my_atoms.Item(current_atom_number).charge = 1;
-				}
+								}
 
-
-//				wxPrintf("%2.2f\n",my_atoms.Item(current_atom_number).relative_bfactor);
-
-				if (current_line.Mid(XSTART,XYZLENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-				{
-					MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(XSTART,XYZLENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-					DEBUG_ABORT;
-				}
-				my_atoms.Item(current_atom_number).x_coordinate = temp_double;
-
-				if (current_line.Mid(YSTART,XYZLENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-				{
-					MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(YSTART,XYZLENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-					DEBUG_ABORT;
-				}
-				my_atoms.Item(current_atom_number).y_coordinate = temp_double;
-
-				if (current_line.Mid(ZSTART,XYZLENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-				{
-					MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(ZSTART,XYZLENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-					DEBUG_ABORT;
-				}
-
-				my_atoms.Item(current_atom_number).z_coordinate = temp_double;
-
-				if (current_line.Mid(OCCUPANCYSTART,OCCUPANCYLENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-				{
-					MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(OCCUPANCYSTART,OCCUPANCYLENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-					DEBUG_ABORT;
-				}
-
-				my_atoms.Item(current_atom_number).occupancy = temp_double;
-
-				if (current_line.Mid(BFACTORSTART,BFACTORLENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-				{
-					MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(BFACTORSTART,BFACTORLENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-					DEBUG_ABORT;
-				}
-
-				my_atoms.Item(current_atom_number).bfactor = temp_double;
-
-
-
-				// H(0),C(1),N(2),O(3),F(4),Na(5),Mg(6),P(7),S(8),Cl(9),K(10),Ca(11),Mn(12),Fe(13),Zn(14)
-				wxString temp_name;
-				temp_name = my_atoms.Item(current_atom_number).name;
-				temp_name.Trim(true).Trim(false);
-
-
-//				temp_name = current_line.Mid(WATERSTART,WATERLENGTH).Trim(true).Trim(false);
-				// First, check to see if it is a water, if not check to see if the element name exists.
-				if (temp_name.StartsWith("WTAA"))
-				{
-					// Set to oxygen for now - TODO FIXME
-					my_atoms.Item(current_atom_number).atom_type =  water;
-				}
-				else
-				{
-
-					// Maybe this should be a switch statement
-					if (temp_name.StartsWith("O") ) {
-						my_atoms.Item(current_atom_number).atom_type = oxygen;
-					} else if (temp_name.StartsWith("C")  ) {
-						my_atoms.Item(current_atom_number).atom_type = carbon;
-					} else if (temp_name.StartsWith("N")  ) {
-						my_atoms.Item(current_atom_number).atom_type = nitrogen;
-					} else if (temp_name.StartsWith("H")  ) {
-						my_atoms.Item(current_atom_number).atom_type = hydrogen;
-					} else if (temp_name.StartsWith("F")  ) {
-						my_atoms.Item(current_atom_number).atom_type = fluorine;
-					} else if (temp_name.StartsWith("Na")  ) {
-						my_atoms.Item(current_atom_number).atom_type = sodium;
-					} else if (temp_name.StartsWith("Mg")  ) {
-						my_atoms.Item(current_atom_number).atom_type = magnesium;
-					} else if (temp_name.StartsWith("MG")  ) {
-						my_atoms.Item(current_atom_number).atom_type = magnesium;
-					} else if (temp_name.StartsWith("P")  ) {
-						my_atoms.Item(current_atom_number).atom_type = phosphorus;
-					} else if (temp_name.StartsWith("S")  ) {
-						my_atoms.Item(current_atom_number).atom_type = sulfur;
-					} else if (temp_name.StartsWith("Cl")  ) {
-						my_atoms.Item(current_atom_number).atom_type = chlorine;
-					} else if (temp_name.StartsWith("K")  ) {
-						my_atoms.Item(current_atom_number).atom_type = potassium;
-					} else if (temp_name.StartsWith("Ca") ) {
-						my_atoms.Item(current_atom_number).atom_type = calcium;
-					} else if (temp_name.StartsWith("Mn")  ) {
-						my_atoms.Item(current_atom_number).atom_type = manganese;
-					} else if (temp_name.StartsWith("Fe")  ) {
-						my_atoms.Item(current_atom_number).atom_type = iron;
-					} else if (temp_name.StartsWith("Zn")  ) {
-						my_atoms.Item(current_atom_number).atom_type = zinc;
-					} else if (temp_name.StartsWith("AU")  ) {
-						my_atoms.Item(current_atom_number).atom_type = gold;
-					} else {
-						MyPrintWithDetails("Failed to match the element name %s\n",my_atoms.Item(current_atom_number).name);
-						DEBUG_ABORT;
-					};
-
-
-				}
-
-
-				current_atom_number++;
-
+							}
+					}
 			}
-			else if (current_line.StartsWith("REMARK") == true && current_line.Length() > 0)
-			{
-				// code for copies
-				if (current_line.Mid(REMARKSTART,REMARKLENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-				{
-					MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(REMARKSTART,REMARKLENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-					DEBUG_ABORT;
-				}
-
-				if (temp_double == 351)
-				{
-
-
-					if (current_line.Mid(XPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-					{
-						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(XPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-						DEBUG_ABORT;
-					}
-					wanted_origin_x = temp_double;
-
-					if (current_line.Mid(YPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-					{
-						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(YPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-						DEBUG_ABORT;
-					}
-					wanted_origin_y = temp_double;
-
-					if (current_line.Mid(ZPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-					{
-						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(ZPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-						DEBUG_ABORT;
-					}
-					wanted_origin_z = temp_double;
-
-					if (current_line.Mid(E1PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-					{
-						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(E1PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-						DEBUG_ABORT;
-					}
-					euler1 = temp_double;
-
-					if (current_line.Mid(E2PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-					{
-						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(E2PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-						DEBUG_ABORT;
-					}
-					euler2 = temp_double;
-
-					if (current_line.Mid(E3PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-					{
-						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(E3PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-						DEBUG_ABORT;
-					}
-
-					euler3 = temp_double;
-
-					// Set up the initial trajectory for this particle instance. This doesn't actually change the coordinates.
-					this->TransformBaseCoordinates(wanted_origin_x,wanted_origin_y,wanted_origin_z,euler1,euler2,euler3, number_of_particles_initialized, 0);
-					//this->TransformBaseCoordinates(wanted_origin_x,wanted_origin_y,wanted_origin_z,0,0,0);
-				}
-
-			}
-
-
-
-
 		}
 
+
+//     		{
+
+
+// 				if (current_line.Mid(BFACTORSTART,BFACTORLENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
+// 				{
+// 					MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(BFACTORSTART,BFACTORLENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
+// 					DEBUG_ABORT;
+// 				}
+
+
+// 				{
+
+// 				// H(0),C(1),N(2),O(3),F(4),Na(5),Mg(6),P(7),S(8),Cl(9),K(10),Ca(11),Mn(12),Fe(13),Zn(14)
+// 				wxString temp_name;
+// 				temp_name = my_atoms.Item(current_atom_number).name;
+// 				temp_name.Trim(true).Trim(false);
+
+
+// //				temp_name = current_line.Mid(WATERSTART,WATERLENGTH).Trim(true).Trim(false);
+// 				// First, check to see if it is a water, if not check to see if the element name exists.
+// 				if (temp_name.StartsWith("WTAA"))
+// 				{
+// 					// Set to oxygen for now - TODO FIXME
+// 					my_atoms.Item(current_atom_number).atom_type =  water;
+// 				}
+// 				else
+// 				{
+
+// 					// Maybe this should be a switch statement
+// 					if (temp_name.StartsWith("O") ) {
+// 						my_atoms.Item(current_atom_number).atom_type = oxygen;
+// 					} else if (temp_name.StartsWith("C")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = carbon;
+// 					} else if (temp_name.StartsWith("N")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = nitrogen;
+// 					} else if (temp_name.StartsWith("H")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = hydrogen;
+// 					} else if (temp_name.StartsWith("F")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = fluorine;
+// 					} else if (temp_name.StartsWith("Na")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = sodium;
+// 					} else if (temp_name.StartsWith("Mg")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = magnesium;
+// 					} else if (temp_name.StartsWith("MG")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = magnesium;
+// 					} else if (temp_name.StartsWith("P")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = phosphorus;
+// 					} else if (temp_name.StartsWith("S")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = sulfur;
+// 					} else if (temp_name.StartsWith("Cl")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = chlorine;
+// 					} else if (temp_name.StartsWith("K")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = potassium;
+// 					} else if (temp_name.StartsWith("Ca") ) {
+// 						my_atoms.Item(current_atom_number).atom_type = calcium;
+// 					} else if (temp_name.StartsWith("Mn")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = manganese;
+// 					} else if (temp_name.StartsWith("Fe")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = iron;
+// 					} else if (temp_name.StartsWith("Zn")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = zinc;
+// 					} else if (temp_name.StartsWith("AU")  ) {
+// 						my_atoms.Item(current_atom_number).atom_type = gold;
+// 					} else {
+// 						MyPrintWithDetails("Failed to match the element name %s\n",my_atoms.Item(current_atom_number).name);
+// 						DEBUG_ABORT;
+// 					};
+
+
+// 				}
+
+
+// 				current_atom_number++;
+
+// 			}
+// 			else if (current_line.StartsWith("REMARK") == true && current_line.Length() > 0)
+// 			{
+// 				// code for copies
+// 				if (current_line.Mid(REMARKSTART,REMARKLENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
+// 				{
+// 					MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(REMARKSTART,REMARKLENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
+// 					DEBUG_ABORT;
+// 				}
+
+// 				if (temp_double == 351)
+// 				{
+
+
+// 					if (current_line.Mid(XPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
+// 					{
+// 						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(XPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
+// 						DEBUG_ABORT;
+// 					}
+// 					wanted_origin_x = temp_double;
+
+// 					if (current_line.Mid(YPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
+// 					{
+// 						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(YPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
+// 						DEBUG_ABORT;
+// 					}
+// 					wanted_origin_y = temp_double;
+
+// 					if (current_line.Mid(ZPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
+// 					{
+// 						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(ZPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
+// 						DEBUG_ABORT;
+// 					}
+// 					wanted_origin_z = temp_double;
+
+// 					if (current_line.Mid(E1PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
+// 					{
+// 						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(E1PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
+// 						DEBUG_ABORT;
+// 					}
+// 					euler1 = temp_double;
+
+// 					if (current_line.Mid(E2PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
+// 					{
+// 						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(E2PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
+// 						DEBUG_ABORT;
+// 					}
+// 					euler2 = temp_double;
+
+// 					if (current_line.Mid(E3PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
+// 					{
+// 						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(E3PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
+// 						DEBUG_ABORT;
+// 					}
+
+// 					euler3 = temp_double;
+
+// 					// Set up the initial trajectory for this particle instance. This doesn't actually change the coordinates.
+// 					this->TransformBaseCoordinates(wanted_origin_x,wanted_origin_y,wanted_origin_z,euler1,euler2,euler3, number_of_particles_initialized, 0);
+// 					//this->TransformBaseCoordinates(wanted_origin_x,wanted_origin_y,wanted_origin_z,0,0,0);
+// 				}
+
+// 			}
+
+
+
+
+// 		}
+exit(-1);
 		// In case there is only one particle, ie  no 351 in pdb
 		if (this->number_of_particles_initialized == 0)
 		{
@@ -628,24 +605,6 @@ void PDB::Init()
 
 		}
 
-	}
-
-	else
-	if (access_type == OPEN_TO_WRITE)
-	{
-		// check if the file exists..
-
-		if (DoesFileExist(text_filename) == true)
-		{
-			if (wxRemoveFile(text_filename) == false)
-			{
-				MyDebugPrintWithDetails("Cannot remove already existing text file");
-			}
-		}
-
-		output_file_stream = new wxFileOutputStream(text_filename);
-		output_text_stream = new wxTextOutputStream(*output_file_stream);
-	}
 
 
 

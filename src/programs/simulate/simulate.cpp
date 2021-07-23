@@ -745,6 +745,7 @@ void SimulateApp::DoInteractiveUserInput()
 	 if (GEMMI_ENABLED) wxPrintf("Gemmi is enabled\n");
 	 else wxPrintf("Gemmi is disabled\n");
 
+
 	 bool add_more_pdbs = true;
 	 bool supply_origin = false;
 	 int iPDB = 0;

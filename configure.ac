@@ -242,6 +242,7 @@ AS_HELP_STRING([--with-gemmi-dir=FILE],[Use the given path to gemmi/include; def
       # TODO add a check that include/gemmi/math.h exists (or some other file.)
         CPPFLAGS="$CPPFLAGS -I$withval/include"
         CXXFLAGS="$CXXFLAGS -I$withval/include"
+        LDFLAGS="$LDFLAGS -lz" 
         AC_DEFINE([ENABLE_GEMMI])
         with_gemmi="yes"
     fi
@@ -254,7 +255,7 @@ AM_CONDITIONAL([ENABLE_GEMMI_AM],[test "x$with_gemmi" == "xyes"])
 AC_ARG_ENABLE(rigorous-sockets, AS_HELP_STRING([--enable-rigorous-sockets],[Use rigorous socket checking [default=no]]),[
   if test "$enableval" = yes; then
   CPPFLAGS="$CPPFLAGS -DRIGOROUS_SOCKET_CHECK"
-  CXXFLAGS="$CXXFLAGS -DRIGOROUS_SOCKET_CHECK"  
+  CXXFLAGS="$CXXFLAGS -DRIGOROUS_SOCKET_CHECK" 
   fi
   ])
  
