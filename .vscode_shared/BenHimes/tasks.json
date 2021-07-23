@@ -1,11 +1,12 @@
 {
+    
     // See https://go.microsoft.com/fwlink/?LinkId=733558
     // for the documentation about the tasks.json format
     "version": "2.0.0",
     "options": {
         "env": {
-            "cuda_dir": "/admin/software/cuda-11.1",
-            "wx_dir":"/admin/software/wxWidgets3_static_INTEL/bin/wx-config",
+            "cuda_dir": "/groups/cryoadmin/software/CUDA-TOOLKIT/cuda_11.3.1",
+            "wx_dir":"/groups/cryoadmin/software/WX/wx_static_3.05_INTEL/bin/wx-config",
             "build_dir": "${workspaceFolder}/build",
             "compile_cores": "56"
         }
@@ -17,6 +18,17 @@
             "command": "echo --with-wx-config=${wx_dir}"
 
         }, 
+
+        {
+            "label": "CONFIG intel,gpu,debug,gemmi",
+            "type": "shell",
+            "command": "mkdir -p ${build_dir}/Intel-gpu-debug && cd ${build_dir}/Intel-gpu-debug && CC=icc CXX=icpc ../../configure  --enable-debugmode --with-gemmi-dir=/groups/himesb/git/gemmi --enable-experimental --with-cuda=${cuda_dir} --enable-staticmode --enable-openmp  --with-wx-config=${wx_dir}"
+        },
+        {
+            "label": "BUILD intel,gpu,debug,gemmi",
+            "type": "shell",
+            "command": "cd ${build_dir}/Intel-gpu-debug && make -j${compile_cores}"
+        },
 
         {
             "label": "CONFIG intel,gpu,debug",

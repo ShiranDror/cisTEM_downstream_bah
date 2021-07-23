@@ -54,7 +54,6 @@ noinst_HEADERS = core/asset_group.h \
                  core/basic_star_file_reader.h \
                  core/rle3d.h \
                  core/angular_distribution_histogram.h \
-                 core/pdb.h \
                  core/local_resolution_estimator.h \
                  core/cistem_parameters.h \
                  core/cistem_star_file_reader.h \
@@ -215,17 +214,26 @@ noinst_HEADERS = core/asset_group.h \
 if EXPERIMENTAL_AM
 noinst_HEADERS += 	gui/MatchTemplatePanel.h \
 					gui/icons/experimental_icon.cpp \
-					gui/icons/match_template_icon.cpp \
-					core/water.h 
+					gui/icons/match_template_icon.cpp 
+					
 					
 endif      
-	
+
+if ENABLE_GEMMI_AM
+noinst_HEADERS += core/water.h \
+                  core/pdb.h 
+endif
+
 noinst_LIBRARIES = libcore.a libguicore.a
 
 bin_PROGRAMS = unblur cisTEM_job_control console_test applyctf reconstruct3d merge3d project3d refine3d calc_occ ctffind remove_outlier_pixels resize resample reset_mrc_header estimate_dataset_ssnr find_particles montage extract_particles sum_all_mrc_files sum_all_tif_files apply_gain_ref scale_with_mask refine2d merge2d mag_distortion_correct apply_mask convert_tif_to_mrc remove_inf_and_nan make_orth_views sharpen_map calculate_fsc make_size_map prepare_stack prepare_stack_classaverage align_symmetry subtract_from_stack binarize  move_volume_xyz  symmetry_expand_stack_and_par fft local_resolution local_resolution_finalize local_resolution_filter subtract_two_stacks add_two_stacks multiply_two_stacks divide_two_stacks invert_stack convert_par_to_star align_coordinates find_dqe combine_via_max refine_ctf estimate_beamtilt remove_relion_stripes warp_to_cistem create_mask invert_hand niko_test append_stacks cisTEM convert_star_to_binary convert_binary_to_star convert_eer_to_mrc azimuthal_average normalize_stack print_stack_statistics combine_stacks_by_star
 
 if EXPERIMENTAL_AM   
-bin_PROGRAMS += match_template refine_template make_template_result prepare_stack_matchtemplate simulate sum_all_power_spectra
+bin_PROGRAMS += match_template refine_template make_template_result prepare_stack_matchtemplate sum_all_power_spectra
+endif
+
+if ENABLE_GEMMI_AM
+bin_PROGRAMS += simulate
 endif
 
 if ENABLEGPU_AM
@@ -312,7 +320,7 @@ libcore_a_SOURCES =    core/functions.cpp \
                        core/eer_file.cpp
 
 
-if EXPERIMENTAL_AM
+if ENABLE_GEMMI_AM
 libcore_a_SOURCES += core/water.cpp core/pdb.cpp
 endif
 
@@ -691,10 +699,6 @@ make_template_result_CXXFLAGS = $(WX_CPPFLAGS_BASE)
 make_template_result_CPPFLAGS = $(WX_CPPFLAGS_BASE)
 make_template_result_LDADD = libcore.a $(WX_LIBS_BASE)
 
-simulate_SOURCES =  programs/simulate/simulate.cpp programs/simulate/wave_function_propagator.cpp programs/simulate/scattering_potential.cpp
-simulate_CXXFLAGS = $(WX_CPPFLAGS_BASE)
-simulate_CPPFLAGS = $(WX_CPPFLAGS_BASE)
-simulate_LDADD = libcore.a $(WX_LIBS_BASE)
 
 sum_all_power_spectra_SOURCES =  programs/sum_all_power_spectra/sum_all_power_spectra.cpp 
 sum_all_power_spectra_CXXFLAGS = $(WX_CPPFLAGS_BASE)
@@ -721,4 +725,11 @@ gpu_devices_SOURCES =  programs/gpu_devices/gpu_devices.cpp
 gpu_devices_CXXFLAGS = $(WX_CPPFLAGS_BASE)
 gpu_devices_CPPFLAGS = $(WX_CPPFLAGS_BASE)
 gpu_devices_LDADD =  libgpucore.a libcore.a $(WX_LIBS_BASE) $(CUDA_LIBS)
+endif
+
+if ENABLE_GEMMI_AM
+simulate_SOURCES =  programs/simulate/simulate.cpp programs/simulate/wave_function_propagator.cpp programs/simulate/scattering_potential.cpp
+simulate_CXXFLAGS = $(WX_CPPFLAGS_BASE)
+simulate_CPPFLAGS = $(WX_CPPFLAGS_BASE)
+simulate_LDADD = libcore.a $(WX_LIBS_BASE)
 endif

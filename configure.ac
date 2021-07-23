@@ -221,15 +221,34 @@ AS_HELP_STRING([--with-fftw-dir=DIR],[Declare the root directory of fftw3, if it
 ])
 
 # experimental
-
+compile_experimental="no"
 AC_ARG_ENABLE(experimental, AS_HELP_STRING([--enable-experimental],[Compile with experimental [default=no]]),[
   if test "$enableval" = yes; then
   CPPFLAGS="$CPPFLAGS -DEXPERIMENTAL"
   CXXFLAGS="$CXXFLAGS -DEXPERIMENTAL"
-  compile_experimental="true"
+  compile_experimental="yes"
   fi
   ])
- 
+AM_CONDITIONAL([EXPERIMENTAL_AM],[test "x$compile_experimental" == "xyes"])
+
+# simulator - atomic objects introduce dependency on GEMMI library (https://github.com/project-gemmi/gemmi.git)
+with_gemmi="no"
+AC_ARG_WITH(gemmi-dir,
+AS_HELP_STRING([--with-gemmi-dir=FILE],[Use the given path to gemmi/include; defaults to not use]),
+[
+  AC_MSG_NOTICE([In GEMMI])
+
+    if test "$withval" != "yes" -a "$withval" != ""; then
+      # TODO add a check that include/gemmi/math.h exists (or some other file.)
+        CPPFLAGS="$CPPFLAGS -I$withval/include"
+        CXXFLAGS="$CXXFLAGS -I$withval/include"
+        AC_DEFINE([ENABLE_GEMMI])
+        with_gemmi="yes"
+    fi
+
+])
+AM_CONDITIONAL([ENABLE_GEMMI_AM],[test "x$with_gemmi" == "xyes"])
+
 #rigorous socket check 
 
 AC_ARG_ENABLE(rigorous-sockets, AS_HELP_STRING([--enable-rigorous-sockets],[Use rigorous socket checking [default=no]]),[
@@ -239,7 +258,6 @@ AC_ARG_ENABLE(rigorous-sockets, AS_HELP_STRING([--enable-rigorous-sockets],[Use 
   fi
   ])
  
-AM_CONDITIONAL([EXPERIMENTAL_AM],[test x$compile_experimental = xtrue])
 
 # OpenMP
 AC_ARG_ENABLE(openmp, AS_HELP_STRING([--enable-openmp],[Compile with OpenMP threading [default=no]]),[

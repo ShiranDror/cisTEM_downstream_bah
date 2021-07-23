@@ -3,7 +3,11 @@
 #include "scattering_potential.h"
 #include "wave_function_propagator.h"
 
-
+#ifdef ENABLE_GEMMI
+const bool GEMMI_ENABLED = true;
+#else
+const bool GEMMI_ENABLED = false;
+#endif
 //#define DO_BEAM_TILT_FULL true
 
 // From Shang and Sigworth, average of polar and non-polar from table 1 (with correction to polar radius 3, 1.7-->3.0);
@@ -738,6 +742,8 @@ IMPLEMENT_APP(SimulateApp);
 void SimulateApp::DoInteractiveUserInput()
 {
 
+	 if (GEMMI_ENABLED) wxPrintf("Gemmi is enabled\n");
+	 else wxPrintf("Gemmi is disabled\n");
 
 	 bool add_more_pdbs = true;
 	 bool supply_origin = false;
