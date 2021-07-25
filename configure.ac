@@ -231,24 +231,6 @@ AC_ARG_ENABLE(experimental, AS_HELP_STRING([--enable-experimental],[Compile with
   ])
 AM_CONDITIONAL([EXPERIMENTAL_AM],[test "x$compile_experimental" == "xyes"])
 
-# simulator - atomic objects introduce dependency on GEMMI library (https://github.com/project-gemmi/gemmi.git)
-with_gemmi="no"
-AC_ARG_WITH(gemmi-dir,
-AS_HELP_STRING([--with-gemmi-dir=FILE],[Use the given path to gemmi/include; defaults to not use]),
-[
-  AC_MSG_NOTICE([In GEMMI])
-
-    if test "$withval" != "yes" -a "$withval" != ""; then
-      # TODO add a check that include/gemmi/math.h exists (or some other file.)
-        CPPFLAGS="$CPPFLAGS -I$withval/include"
-        CXXFLAGS="$CXXFLAGS -I$withval/include"
-        LDFLAGS="$LDFLAGS -lz" 
-        AC_DEFINE([ENABLE_GEMMI])
-        with_gemmi="yes"
-    fi
-
-])
-AM_CONDITIONAL([ENABLE_GEMMI_AM],[test "x$with_gemmi" == "xyes"])
 
 #rigorous socket check 
 

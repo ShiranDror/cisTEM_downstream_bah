@@ -22,7 +22,7 @@
         {
             "label": "CONFIG intel,gpu,debug,gemmi",
             "type": "shell",
-            "command": "mkdir -p ${build_dir}/Intel-gpu-debug && cd ${build_dir}/Intel-gpu-debug && CC=icc CXX=icpc ../../configure  --enable-debugmode --with-gemmi-dir=/groups/himesb/git/gemmi --enable-experimental --with-cuda=${cuda_dir} --enable-staticmode --enable-openmp  --with-wx-config=${wx_dir}"
+            "command": "mkdir -p ${build_dir}/Intel-gpu-debug && cd ${build_dir}/Intel-gpu-debug && CC=icc CXX=icpc ../../configure  --enable-debugmode  --enable-experimental --with-cuda=${cuda_dir} --enable-staticmode --enable-openmp  --with-wx-config=${wx_dir}"
         },
         {
             "label": "BUILD intel,gpu,debug,gemmi",

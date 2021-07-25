@@ -4,9 +4,9 @@ WX_DEFINE_OBJARRAY(ArrayOfAtoms);
 WX_DEFINE_OBJARRAY(ArrayOfParticleTrajectories);
 //WX_DEFINE_OBJARRAY(ArrayOfParticleInstances);
 
-#include <gemmi/mmread.hpp>
-#include <gemmi/gz.hpp>
-#include <gemmi/resinfo.hpp>
+#include "../../include/gemmi/mmread.hpp"
+#include "../../include/gemmi/gz.hpp"
+#include "../../include/gemmi/resinfo.hpp"
 
 const double MIN_PADDING_Z    = 4;
 const int MAX_XY_DIMENSION = 4096*2;
@@ -304,6 +304,17 @@ void PDB::Init()
 	wxFFileOutputStream output( stderr );
 	wxTextOutputStream cout( output );
 	cout << "Can I print anything?" ;
+	wxPrintf("size of fload is %i\n", (int)sizeof(float));
+	wxPrintf("size of bloat is %i\n", (int)sizeof(nv_bfloat16));
+
+	wxPrintf("size of int is %i\n", (int)sizeof(int));
+	wxPrintf("size of short int is %i\n", (int)sizeof(short int));
+
+	wxPrintf("size of char is %i\n", (int)sizeof(char));
+
+	wxPrintf("size of bool is %i\n", (int)sizeof(bool));
+
+
 
 		auto st = gemmi::read_structure(gemmi::MaybeGzipped(text_filename.ToStdString()));
 
