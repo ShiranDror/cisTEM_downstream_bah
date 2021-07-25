@@ -165,7 +165,9 @@ protected:
 #include "stopwatch.h"
 #include "ccl3d.h"
 
-#ifdef EXPERIMENTAL
+#ifdef ENABLE_GEMMI
+#include <gemmi/model.hpp>
+#include <gemmi/elem.hpp>
 #include "pdb.h"
 #include "water.h"
 #endif

@@ -6,7 +6,6 @@ WX_DEFINE_OBJARRAY(ArrayOfParticleTrajectories);
 
 #include <gemmi/mmread.hpp>
 #include <gemmi/gz.hpp>
-#include <gemmi/model.hpp>
 #include <gemmi/resinfo.hpp>
 
 const double MIN_PADDING_Z    = 4;
@@ -316,12 +315,14 @@ void PDB::Init()
 			{
 					for (gemmi::Residue& res : chain.residues)
 					{
+						for (gemmi::Atom& atom : res.atoms) 
+						{
 							// For now, we only want ATOM 
 							if (res.het_flag == 'A')  // 'A' = ATOM, 'H' = HETATM, 0 = unspecified
 							{
 								number_of_atoms++;	
 							}
-
+						}
 					}
 
 			}
@@ -334,12 +335,12 @@ void PDB::Init()
 		// Copy every real atom into a noise atom
 		if (generate_noise_atoms)
 		{
-			number_of_atoms += number_of_atoms * this->max_number_of_noise_particles;
+			number_of_atoms += (number_of_atoms * this->max_number_of_noise_particles);
 		}
 
 		wxPrintf("Max particles is %d here\n",max_number_of_noise_particles);
 		// If noie noise atoms, this will always equal number of atoms. Otherwise, number of atoms is at most this, and changes from particle to particle in the stack
-		number_of_real_and_noise_atoms = number_of_atoms + number_of_real_atoms;
+		number_of_real_and_noise_atoms = number_of_atoms;
 
 		wxPrintf("\nIn constructor real total current %ld %ld %ld\n", number_of_real_atoms,number_of_real_and_noise_atoms, number_of_atoms);
 
@@ -352,17 +353,18 @@ void PDB::Init()
 
 		// I'm sure there is already something in GEMMI to do an iteration like this.
 		for (gemmi::Model& model : st.models)
-		{
-			
+		{		
 			for (gemmi::Chain& chain : model.chains)
 			{
 					for (gemmi::Residue& res : chain.residues)
 					{
+
 							// For now, we only want ATOM 
 							if (res.het_flag == 'A')  // 'A' = ATOM, 'H' = HETATM, 0 = unspecified
 							{
 								for (gemmi::Atom& atom : res.atoms) 
 								{
+
 									my_atoms.Item(current_atom_number).name =  wxString(atom.name);
 									my_atoms.Item(current_atom_number).is_real_particle = true;
 
@@ -374,10 +376,85 @@ void PDB::Init()
 									my_atoms.Item(current_atom_number).z_coordinate = float(atom.pos.z);
 									my_atoms.Item(current_atom_number).occupancy = atom.occ;
 									my_atoms.Item(current_atom_number).bfactor = atom.b_iso;
-									cout << "Element is " << atom.element.name() << "and el" << atom.element.ordinal() << '\n' ;
+
+									// Will replace this by actually using the element type
+									switch (atom.element.ordinal()) {
+
+										case 0:
+											MyDebugPrintWithDetails("Error, non-element type");
+											exit(-1);
+											break;
+										case 1:
+											my_atoms.Item(current_atom_number).atom_type = hydrogen;
+											break;
+										case 6:
+											my_atoms.Item(current_atom_number).atom_type = carbon;
+											break;
+										case 7:
+											my_atoms.Item(current_atom_number).atom_type = nitrogen;
+											break;
+										case 8:
+											my_atoms.Item(current_atom_number).atom_type = oxygen;
+											break;
+										case 9:
+											my_atoms.Item(current_atom_number).atom_type = fluorine;
+											break;
+										case 11:
+											my_atoms.Item(current_atom_number).atom_type = sodium;
+											break;
+										case 12:
+											my_atoms.Item(current_atom_number).atom_type = magnesium;
+											break;
+										case 14:
+											my_atoms.Item(current_atom_number).atom_type = silicon;
+											break;
+										case 15:
+											my_atoms.Item(current_atom_number).atom_type = phosphorus;
+											break;
+										case 16:
+											my_atoms.Item(current_atom_number).atom_type = sulfur;
+											break;
+										case 17:
+											my_atoms.Item(current_atom_number).atom_type = chlorine;
+											break;
+										case 19:
+											my_atoms.Item(current_atom_number).atom_type = potassium;
+											break;
+										case 20:
+											my_atoms.Item(current_atom_number).atom_type = calcium;
+											break;
+										case 25:
+											my_atoms.Item(current_atom_number).atom_type = manganese;
+											break;
+										case 27:
+											my_atoms.Item(current_atom_number).atom_type = iron;
+											break;
+										case 28:
+											my_atoms.Item(current_atom_number).atom_type = cobalt;
+											break;
+										case 30:
+											my_atoms.Item(current_atom_number).atom_type = zinc;
+											break;
+										case 34:
+											my_atoms.Item(current_atom_number).atom_type = selenium;
+											break;
+										case 79:
+											my_atoms.Item(current_atom_number).atom_type = gold;
+											break;
+										default:
+											wxPrintf("Un-coded conversion from gemmi::el to Atom::atom_type\n");
+											cout << "Element is " << atom.element.name() << "and el" << atom.element.ordinal() << '\n' ;
+											exit(-1);
+											
+
+									}
+
+									// cout << "Element is " << atom.element.name() << "and el" << atom.element.ordinal() << '\n' ;
 									// my_atoms.Item(current_atom_number).atom_type = oxygen;
 
 									// TODO next, update my enums to use zero as X for unkown and match to those in gemmi/include/elem.hpp
+					
+					 				current_atom_number++;
 
 								}
 
@@ -387,149 +464,6 @@ void PDB::Init()
 		}
 
 
-//     		{
-
-
-// 				if (current_line.Mid(BFACTORSTART,BFACTORLENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-// 				{
-// 					MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(BFACTORSTART,BFACTORLENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-// 					DEBUG_ABORT;
-// 				}
-
-
-// 				{
-
-// 				// H(0),C(1),N(2),O(3),F(4),Na(5),Mg(6),P(7),S(8),Cl(9),K(10),Ca(11),Mn(12),Fe(13),Zn(14)
-// 				wxString temp_name;
-// 				temp_name = my_atoms.Item(current_atom_number).name;
-// 				temp_name.Trim(true).Trim(false);
-
-
-// //				temp_name = current_line.Mid(WATERSTART,WATERLENGTH).Trim(true).Trim(false);
-// 				// First, check to see if it is a water, if not check to see if the element name exists.
-// 				if (temp_name.StartsWith("WTAA"))
-// 				{
-// 					// Set to oxygen for now - TODO FIXME
-// 					my_atoms.Item(current_atom_number).atom_type =  water;
-// 				}
-// 				else
-// 				{
-
-// 					// Maybe this should be a switch statement
-// 					if (temp_name.StartsWith("O") ) {
-// 						my_atoms.Item(current_atom_number).atom_type = oxygen;
-// 					} else if (temp_name.StartsWith("C")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = carbon;
-// 					} else if (temp_name.StartsWith("N")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = nitrogen;
-// 					} else if (temp_name.StartsWith("H")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = hydrogen;
-// 					} else if (temp_name.StartsWith("F")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = fluorine;
-// 					} else if (temp_name.StartsWith("Na")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = sodium;
-// 					} else if (temp_name.StartsWith("Mg")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = magnesium;
-// 					} else if (temp_name.StartsWith("MG")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = magnesium;
-// 					} else if (temp_name.StartsWith("P")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = phosphorus;
-// 					} else if (temp_name.StartsWith("S")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = sulfur;
-// 					} else if (temp_name.StartsWith("Cl")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = chlorine;
-// 					} else if (temp_name.StartsWith("K")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = potassium;
-// 					} else if (temp_name.StartsWith("Ca") ) {
-// 						my_atoms.Item(current_atom_number).atom_type = calcium;
-// 					} else if (temp_name.StartsWith("Mn")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = manganese;
-// 					} else if (temp_name.StartsWith("Fe")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = iron;
-// 					} else if (temp_name.StartsWith("Zn")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = zinc;
-// 					} else if (temp_name.StartsWith("AU")  ) {
-// 						my_atoms.Item(current_atom_number).atom_type = gold;
-// 					} else {
-// 						MyPrintWithDetails("Failed to match the element name %s\n",my_atoms.Item(current_atom_number).name);
-// 						DEBUG_ABORT;
-// 					};
-
-
-// 				}
-
-
-// 				current_atom_number++;
-
-// 			}
-// 			else if (current_line.StartsWith("REMARK") == true && current_line.Length() > 0)
-// 			{
-// 				// code for copies
-// 				if (current_line.Mid(REMARKSTART,REMARKLENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-// 				{
-// 					MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(REMARKSTART,REMARKLENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-// 					DEBUG_ABORT;
-// 				}
-
-// 				if (temp_double == 351)
-// 				{
-
-
-// 					if (current_line.Mid(XPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-// 					{
-// 						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(XPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-// 						DEBUG_ABORT;
-// 					}
-// 					wanted_origin_x = temp_double;
-
-// 					if (current_line.Mid(YPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-// 					{
-// 						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(YPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-// 						DEBUG_ABORT;
-// 					}
-// 					wanted_origin_y = temp_double;
-
-// 					if (current_line.Mid(ZPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-// 					{
-// 						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(ZPARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-// 						DEBUG_ABORT;
-// 					}
-// 					wanted_origin_z = temp_double;
-
-// 					if (current_line.Mid(E1PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-// 					{
-// 						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(E1PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-// 						DEBUG_ABORT;
-// 					}
-// 					euler1 = temp_double;
-
-// 					if (current_line.Mid(E2PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-// 					{
-// 						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(E2PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-// 						DEBUG_ABORT;
-// 					}
-// 					euler2 = temp_double;
-
-// 					if (current_line.Mid(E3PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToDouble(&temp_double) == false)
-// 					{
-// 						MyPrintWithDetails("Failed on the following record : %s\nFrom Line  : %s\n", current_line.Mid(E3PARTICLE,PARTICLELENGTH).Trim(true).Trim(false).ToUTF8().data(), current_line.ToUTF8().data());
-// 						DEBUG_ABORT;
-// 					}
-
-// 					euler3 = temp_double;
-
-// 					// Set up the initial trajectory for this particle instance. This doesn't actually change the coordinates.
-// 					this->TransformBaseCoordinates(wanted_origin_x,wanted_origin_y,wanted_origin_z,euler1,euler2,euler3, number_of_particles_initialized, 0);
-// 					//this->TransformBaseCoordinates(wanted_origin_x,wanted_origin_y,wanted_origin_z,0,0,0);
-// 				}
-
-// 			}
-
-
-
-
-// 		}
-exit(-1);
 		// In case there is only one particle, ie  no 351 in pdb
 		if (this->number_of_particles_initialized == 0)
 		{
@@ -537,9 +471,6 @@ exit(-1);
 			this->TransformBaseCoordinates(0,0,0,0,0,0,0,0);
 		}
 
-		// rewind the file..
-
-		Rewind();
 
 		// Finally, calculate the center of mass of the PDB object.
 		if (! use_provided_com)
