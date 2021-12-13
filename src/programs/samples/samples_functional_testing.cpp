@@ -1,10 +1,9 @@
 //#include <wx/wx.h>
 
-// #include "common/samples_headers.h"
+#include "../../core/core_headers.h"
+#include "0_Simple/disk_io_image.cpp"
 #ifdef ENABLEGPU
-  #include "../../gpu/gpu_core_headers.h"
-#else
-  #include "../../core/core_headers.h"
+#include "1_GPU_comparison/cpu_vs_gpu.cpp"
 #endif
 
 // Helper classes for interacting with the test data.
