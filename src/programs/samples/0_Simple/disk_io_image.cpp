@@ -38,12 +38,12 @@
 void PrintResult(wxString testName, bool result) {
 
   wxPrintf("\t%s",testName);
-  result ? wxPrintf(": [Success]\n") : wxPrintf(": [Failed]\n");
+  wxPrintf(result ? ": [Success]\n":": [Failed]\n");
 
 }
 
 void TestResult(wxString testName, bool result) {
-  wxString indendation = "  ";
+  wxString indendation = "\t";
   testName = indendation + testName + " test";
   PrintResult(testName, result);
 }
@@ -62,7 +62,7 @@ bool DoDiskIOImageTests(wxString hiv_images_80x80x10_filename, wxString temp_dir
   Image test_image;
   test_image.ReadSlice(&input_file, 1);
 
-  wxPrintf("Starting disk I/O image tests.\n");
+  wxPrintf("\tStarting disk I/O image tests.\n");
 
   // The easiest way to read or write and image is simply to use the "quick and
   // dirty methods" in Image class

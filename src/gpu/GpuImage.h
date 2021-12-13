@@ -15,8 +15,9 @@ class GpuImage {
 public:
 
 	GpuImage();
-	GpuImage( const GpuImage &other_gpu_image ); // copy constructor
+	GpuImage( const GpuImage &other_gpu_image); // copy constructor
 	GpuImage(Image &cpu_image);
+	GpuImage(CpuImageFragment *cpu_image);
 	virtual ~GpuImage();
 
 	GpuImage & operator = (const GpuImage &t);
@@ -182,6 +183,7 @@ public:
 	void CopyHostToDevice();
 	void CopyDeviceToHost(bool free_gpu_memory = true, bool unpin_host_memory = true);
 	void CopyDeviceToHost(Image &cpu_image, bool should_block_until_complete = false, bool free_gpu_memory = true);
+	void CopyDeviceToHost(CpuImageFragment *cpu_image, bool should_block_until_complete = true, bool free_gpu_memory = true);
 
 	void CopyDeviceToNewHost(Image &cpu_image, bool should_block_until_complete, bool free_gpu_memory);
 	Image CopyDeviceToNewHost(bool should_block_until_complete, bool free_gpu_memory);
@@ -193,6 +195,7 @@ public:
 	void Record();
 	void Wait();
 	void RecordAndWait();
+	void Synchronize();
 	// Maximum intensity projection
 	void MipPixelWise(GpuImage &other_image);
 	void MipPixelWise(GpuImage &other_image, GpuImage &psi, GpuImage &phi, GpuImage &theta,
@@ -227,6 +230,7 @@ public:
 	};
 
 	void CopyFromCpuImage(Image &cpu_image);
+	void CopyFromCpuImage(CpuImageFragment *cpu_image);
 	void UpdateCpuFlags();
 	void printVal(std::string msg, int idx);
 	bool HasSameDimensionsAs(GpuImage *other_image);
@@ -319,11 +323,18 @@ public:
 
 /*template void d_MultiplyByScalar<T>(T* d_input, T* d_multiplicators, T* d_output, size_t elements, int batch);*/
 
-
+protected:
+	void PinRealSpaceMemoryHost();
+	void UnpinHost();
+	void CopyRealSpaceMemoryFromDeviceToHost();
+	void CopyRealSpaceMemoryFromDeviceToHostAndSynchronize();
+	void CopyRealSpaceMemoryFromHostToDevice();
+	void CopyRealSpaceMemoryFromHostToDeviceAndSynchronize();
 
 private:
 
-
+	bool temp_vars_allocated = false;
+	
 };
 
 #endif /* GPUIMAGE_H_ */

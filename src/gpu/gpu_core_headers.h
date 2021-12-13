@@ -6,6 +6,10 @@
  */
 
 
+#ifdef __ICC
+#pragma warning(disable: 161 1682)
+#endif
+
 #ifndef GPU_CORE_HEADERS_H_
 #define GPU_CORE_HEADERS_H_
 
@@ -107,3 +111,4 @@ static __device__ __host__ inline Complex ComplexConjMulAndScale(Complex a, Comp
 }
 
 #endif /* GPU_CORE_HEADERS_H_ */
+

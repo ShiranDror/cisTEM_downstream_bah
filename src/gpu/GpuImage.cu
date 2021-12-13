@@ -5,11 +5,9 @@
  *      Author: himesb
  */
 
-//#include "gpu_core_headers.h"
-
 #include "gpu_core_headers.h"
 
-
+#pragma region Kernels
 __global__ void ConvertToHalfPrecisionKernelComplex(cufftComplex* complex_32f_values, __half2* complex_16f_values, int4 dims, int3 physical_upper_bound_complex);
 __global__ void ConvertToHalfPrecisionKernelReal(cufftReal* real_32f_values, __half* real_16f_values, int4 dims);
 
@@ -196,7 +194,7 @@ ReturnFourierLogicalCoordGivenPhysicalCoord_Z(int physical_index,
     }
     else return physical_index;
 };
-
+#pragma endregion Kernels
 ////////////////// For thrust
 typedef struct 
 {
@@ -207,6 +205,7 @@ typedef struct
 } square;
 ////////////////////////
 
+#pragma region Constructors
 GpuImage::GpuImage()
 { 
   SetupInitialValues();
@@ -221,6 +220,11 @@ GpuImage::GpuImage(Image &cpu_image)
 	
 }
 
+GpuImage::GpuImage(CpuImageFragment *cpu_image) {
+	SetupInitialValues();
+	CopyFromCpuImage(cpu_image);
+}
+
 GpuImage::GpuImage( const GpuImage &other_gpu_image) // copy constructor
 {
 
@@ -228,6 +232,9 @@ GpuImage::GpuImage( const GpuImage &other_gpu_image) // copy constructor
 	*this = other_gpu_image;
 }
 
+#pragma endregion Constructors
+
+#pragma region Operators
 GpuImage & GpuImage::operator = (const GpuImage &other_gpu_image)
 {
 	*this = &other_gpu_image;
@@ -269,12 +276,10 @@ GpuImage & GpuImage::operator = (const GpuImage *other_gpu_image)
 
    return *this;
 }
-
+#pragma endregion Operators
 GpuImage::~GpuImage() 
 {
 	Deallocate();
-	// cudaErr(cudaFree(tmpVal));
-	// cudaErr(cudaFree(tmpValComplex));
 }
 
 
@@ -320,6 +325,7 @@ void GpuImage::SetupInitialValues()
 	insert_into_which_reconstruction = 0;
 	hostImage = NULL;
 
+
 	cudaErr(cudaEventCreateWithFlags(&nppCalcEvent, cudaEventDisableTiming);)
 
 	cudaErr(cudaGetDevice(&device_idx));
@@ -332,95 +338,60 @@ void GpuImage::SetupInitialValues()
 
 void GpuImage::CopyFromCpuImage(Image &cpu_image) 
 {
-
 	UpdateBoolsToDefault();
 
-	dims = make_int4(cpu_image.logical_x_dimension,
-				   cpu_image.logical_y_dimension,
-				   cpu_image.logical_z_dimension,
-				   cpu_image.logical_x_dimension + cpu_image.padding_jump_value);
+	Allocate(cpu_image.logical_x_dimension, cpu_image.logical_y_dimension, cpu_image.logical_z_dimension, cpu_image.is_in_real_space);
 
-	pitch = dims.w * sizeof(float);
-
-	physical_upper_bound_complex = make_int3(cpu_image.physical_upper_bound_complex_x,
-										   cpu_image.physical_upper_bound_complex_y,
-										   cpu_image.physical_upper_bound_complex_z);
-
-	physical_address_of_box_center   = make_int3(cpu_image.physical_address_of_box_center_x,
-											   cpu_image.physical_address_of_box_center_y,
-											   cpu_image.physical_address_of_box_center_z);
-
-	physical_index_of_first_negative_frequency = make_int3(0,
-														 cpu_image.physical_index_of_first_negative_frequency_y,
-														 cpu_image.physical_index_of_first_negative_frequency_z);
-
-
-	logical_upper_bound_complex = make_int3(cpu_image.logical_upper_bound_complex_x,
-										  cpu_image.logical_upper_bound_complex_y,
-										  cpu_image.logical_upper_bound_complex_z);
-
-
-	logical_lower_bound_complex = make_int3(cpu_image.logical_lower_bound_complex_x,
-										  cpu_image.logical_lower_bound_complex_y,
-										  cpu_image.logical_lower_bound_complex_z);
-
-
-	logical_upper_bound_real = make_int3(cpu_image.logical_upper_bound_real_x,
-									   cpu_image.logical_upper_bound_real_y,
-									   cpu_image.logical_upper_bound_real_z);
-
-	logical_lower_bound_real = make_int3(cpu_image.logical_lower_bound_real_x,
-									   cpu_image.logical_lower_bound_real_y,
-									   cpu_image.logical_lower_bound_real_z);
-
-
-	is_in_real_space = cpu_image.is_in_real_space;
-	number_of_real_space_pixels = cpu_image.number_of_real_space_pixels;
-	object_is_centred_in_box = cpu_image.object_is_centred_in_box;
-
-	fourier_voxel_size = make_float3(cpu_image.fourier_voxel_size_x,
-								   cpu_image.fourier_voxel_size_y,
-								   cpu_image.fourier_voxel_size_z);
-
-
-	insert_into_which_reconstruction = cpu_image.insert_into_which_reconstruction;
 	real_values = cpu_image.real_values;
+
 	complex_values = cpu_image.complex_values;
 
 	is_in_memory = cpu_image.is_in_memory;
 
-	padding_jump_value = cpu_image.padding_jump_value;
+
 	image_memory_should_not_be_deallocated = cpu_image.image_memory_should_not_be_deallocated; // TODO what is this for?
 
 
-	real_values_gpu = NULL;									// !<  Real array to hold values for REAL images.
-	complex_values_gpu = NULL;								// !<  Complex array to hold values for COMP images.
-	is_in_memory_gpu = false;
 	real_memory_allocated =  cpu_image.real_memory_allocated;
 
-
-	ft_normalization_factor = cpu_image.ft_normalization_factor;
-
-	// FIXME for now always pin the memory - this might be a bad choice for single copy or small images, but is required for asynch xfer and is ~2x as fast after pinning
-	cudaHostRegister(real_values, sizeof(float)*real_memory_allocated, cudaHostRegisterDefault);
-	is_host_memory_pinned = true;
-	is_meta_data_initialized = true;
-	cudaHostGetDevicePointer( &pinnedPtr, real_values, 0);
+	PinRealSpaceMemoryHost();
 
 	cudaMallocManaged(&tmpVal, sizeof(float));
 	cudaMallocManaged(&tmpValComplex, sizeof(double));
+	temp_vars_allocated = true;
+}
+
+void GpuImage::CopyFromCpuImage(CpuImageFragment *cpu_image) 
+{
+
+	UpdateBoolsToDefault();
+
+	Allocate(cpu_image->outer_dims.x, cpu_image->outer_dims.y, cpu_image->outer_dims.z, cpu_image->is_in_real_space);
 
 
-	hostImage = &cpu_image;
- 
+	real_values = cpu_image->real_values;
+
+	complex_values = nullptr; //cpu_image->complex_values;
+
+	is_in_memory = cpu_image->is_in_memory;
+
+	real_memory_allocated =  cpu_image->real_memory_allocated;
+
+	PinRealSpaceMemoryHost();
+
+	cudaMallocManaged(&tmpVal, sizeof(float));
+	cudaMallocManaged(&tmpValComplex, sizeof(double));
+	temp_vars_allocated = true;
 }
 
 void GpuImage::UpdateCpuFlags() 
 {
 
-  // Call after re-copying. The main image properites are all assumed to be static.
-  is_in_real_space = hostImage->is_in_real_space;
-  object_is_centred_in_box = hostImage->object_is_centred_in_box;
+	if (hostImage != nullptr) {
+		// Call after re-copying. The main image properites are all assumed to be static.
+		is_in_real_space = hostImage->is_in_real_space;
+		object_is_centred_in_box = hostImage->object_is_centred_in_box;
+	}	
 
 }
 
@@ -1407,21 +1378,37 @@ void GpuImage::Zeros()
 
 void GpuImage::CopyHostToDevice()
 {
- 
+	bool verbose_print = true;
+ 	if (verbose_print) wxPrintf("\t\t\tCopyHostToDevice started.\n");
 	MyAssertTrue(is_in_memory, "Host memory not allocated");
-
-	if ( ! is_in_memory_gpu )
+	precheck
+	if (!is_in_memory_gpu)
 	{
+		// Should this be a call to Allocate() ??
+		if (verbose_print) wxPrintf("\t\t\tCopyHostToDevice cudaMalloc started.\n");
 		cudaErr(cudaMalloc(&real_values_gpu, real_memory_allocated*sizeof(float)));
 		complex_values_gpu = (cufftComplex *)real_values_gpu;
 		is_in_memory_gpu = true;
+		if (verbose_print) wxPrintf("\t\t\tCopyHostToDevice cudaMalloc done.\n");
 	}
-
-	pre_checkErrorsAndTimingWithSynchronization(cudaStreamPerThread);
-	cudaErr(cudaMemcpyAsync( real_values_gpu, pinnedPtr, real_memory_allocated*sizeof(float),cudaMemcpyHostToDevice,cudaStreamPerThread));
-	checkErrorsAndTimingWithSynchronization(cudaStreamPerThread);
-
+	postcheck
+	if (verbose_print) wxPrintf("\t\t\tCopyHostToDevice cudaMemcpyAsync started.\n");
+	precheck
+<<<<<<< HEAD
+	PinRealSpaceMemoryHost();
+	//cudaErr(cudaMemcpyAsync( real_values_gpu, pinnedPtr, real_memory_allocated*sizeof(float),cudaMemcpyHostToDevice,cudaStreamPerThread));
+	CopyRealSpaceMemoryFromHostToDeviceAndSynchronize();
+	UnpinHost();
+=======
+	//PinRealSpaceMemoryHost();
+	//cudaErr(cudaMemcpyAsync( real_values_gpu, pinnedPtr, real_memory_allocated*sizeof(float),cudaMemcpyHostToDevice,cudaStreamPerThread));
+	CopyRealSpaceMemoryFromHostToDeviceAndSynchronize();
+	//UnpinHost();
+>>>>>>> d2ea731e5ab0f07ee7a519a473158e09e34ecf16
+	postcheck
+	if (verbose_print) wxPrintf("\t\t\tCopyHostToDevice cudaMemcpyAsync done.\n");
 	UpdateCpuFlags();
+	if (verbose_print) wxPrintf("\t\t\tCopyHostToDevice done.\n");
 
 }
 
@@ -1430,116 +1417,113 @@ void GpuImage::CopyDeviceToHost(bool free_gpu_memory, bool unpin_host_memory)
  
 	MyAssertTrue(is_in_memory_gpu, "GPU memory not allocated");
 	// TODO other asserts on size etc.
-	pre_checkErrorsAndTimingWithSynchronization(cudaStreamPerThread);
-	cudaErr(cudaMemcpyAsync(pinnedPtr, real_values_gpu, real_memory_allocated*sizeof(float),cudaMemcpyDeviceToHost,cudaStreamPerThread));
-	checkErrorsAndTimingWithSynchronization(cudaStreamPerThread);
+	
+	PinRealSpaceMemoryHost();
+	CopyRealSpaceMemoryFromDeviceToHostAndSynchronize();
+	//cudaErr(cudaMemcpyAsync(pinnedPtr, real_values_gpu, real_memory_allocated*sizeof(float),cudaMemcpyDeviceToHost,cudaStreamPerThread));
+	
 	//  cudaErr(cudaMemcpyAsync(real_values, real_values_gpu, real_memory_allocated*sizeof(float),cudaMemcpyDeviceToHost,cudaStreamPerThread));
 	// TODO add asserts etc.
 	if (free_gpu_memory) 
 	{ 
 		Deallocate();
 	}
-	if (unpin_host_memory && is_host_memory_pinned)
-	{
-		cudaHostUnregister(real_values);
-		is_host_memory_pinned = false;
+	else if (unpin_host_memory) {
+		UnpinHost();
 	}
+	
+	Synchronize();
 
 }
 
 void GpuImage::CopyDeviceToHost(Image &cpu_image, bool should_block_until_complete, bool free_gpu_memory)
+{
+	MyAssertTrue(is_in_memory_gpu, "GPU memory not allocated");
+	MyAssertTrue(should_block_until_complete, "should_block_until_complete has to be true. CopyDeviceToHost uses pinned memory. It has to lock the memory before and release it after the data copy.\n");
+
+
+	// TODO other asserts on size etc.
+
+	PinRealSpaceMemoryHost();
+	CopyRealSpaceMemoryFromDeviceToHostAndSynchronize();
+
+
+	if (free_gpu_memory) { 
+
+		Deallocate();
+	}
+
+	Synchronize();
+}
+
+void GpuImage::CopyDeviceToHost(CpuImageFragment *cpu_image, bool should_block_until_complete, bool free_gpu_memory)
 {
 
 	MyAssertTrue(is_in_memory_gpu, "GPU memory not allocated");
 	// TODO other asserts on size etc.
 
 
-	float* tmpPinnedPtr;
-	// FIXME for now always pin the memory - this might be a bad choice for single copy or small images, but is required for asynch xfer and is ~2x as fast after pinning
-	cudaHostRegister(cpu_image.real_values, sizeof(float)*real_memory_allocated, cudaHostRegisterDefault);
-	cudaHostGetDevicePointer( &tmpPinnedPtr, cpu_image.real_values, 0);
+	PinRealSpaceMemoryHost();
+	CopyRealSpaceMemoryFromDeviceToHostAndSynchronize();
 
-	pre_checkErrorsAndTimingWithSynchronization(cudaStreamPerThread);
-	cudaErr(cudaMemcpyAsync(tmpPinnedPtr, real_values_gpu, real_memory_allocated*sizeof(float),cudaMemcpyDeviceToHost,cudaStreamPerThread));
-	checkErrorsAndTimingWithSynchronization(cudaStreamPerThread);
 
-	if (should_block_until_complete) cudaErr(cudaStreamSynchronize(cudaStreamPerThread));
-	// TODO add asserts etc.
-	if (free_gpu_memory) { cudaFree(real_values_gpu) ; } // FIXME what about the other structures
+	if (free_gpu_memory) { 
 
-	cudaHostUnregister(tmpPinnedPtr);
+		Deallocate();
+	}
+
+	Synchronize();
+	// float* tmpPinnedPtr;
+	// // FIXME for now always pin the memory - this might be a bad choice for single copy or small images, but is required for asynch xfer and is ~2x as fast after pinning
+	// cudaHostRegister(cpu_image->real_values, sizeof(float)*real_memory_allocated, cudaHostRegisterDefault);
+	// cudaHostGetDevicePointer( &tmpPinnedPtr, cpu_image->real_values, 0);
+
+	// pre_checkErrorsAndTimingWithSynchronization(cudaStreamPerThread);
+	// cudaErr(cudaMemcpyAsync(tmpPinnedPtr, real_values_gpu, real_memory_allocated*sizeof(float),cudaMemcpyDeviceToHost,cudaStreamPerThread));
+	// checkErrorsAndTimingWithSynchronization(cudaStreamPerThread);
+
+	// if (should_block_until_complete) cudaErr(cudaStreamSynchronize(cudaStreamPerThread));
+	// // TODO add asserts etc.
+	// if (free_gpu_memory) { 
+	// 	cudaFree(real_values_gpu);
+	// 	// Deallocate();
+	// } // FIXME what about the other structures
+
+	// cudaHostUnregister(tmpPinnedPtr);
 
 }
 
 void GpuImage::CopyDeviceToNewHost(Image &cpu_image, bool should_block_until_complete, bool free_gpu_memory)
 {
-  cpu_image.logical_x_dimension = dims.x;
-  cpu_image.logical_y_dimension = dims.y;
-  cpu_image.logical_z_dimension = dims.z;
-  cpu_image.padding_jump_value = dims.w - dims.x;
+	bool print_verbose = true;
+	if (print_verbose) wxPrintf("Allocating CPU memory.\n");
 
-  cpu_image.physical_upper_bound_complex_x = physical_upper_bound_complex.x;
-  cpu_image.physical_upper_bound_complex_y = physical_upper_bound_complex.y;
-  cpu_image.physical_upper_bound_complex_z = physical_upper_bound_complex.z;
+	cpu_image.Allocate(dims.x, dims.y, dims.z, is_in_real_space, false);
 
-  cpu_image.physical_address_of_box_center_x = physical_address_of_box_center.x;
-  cpu_image.physical_address_of_box_center_y = physical_address_of_box_center.y;
-  cpu_image.physical_address_of_box_center_z = physical_address_of_box_center.z;
+	cpu_image.image_memory_should_not_be_deallocated = image_memory_should_not_be_deallocated;
+	//UnpinHost();
+	real_values = cpu_image.real_values;
+	complex_values = cpu_image.complex_values;
+	PinRealSpaceMemoryHost();
 
-  // when copied to GPU image, this is set to 0. not sure if required to be copied.
-  //cpu_image.physical_index_of_first_negative_frequency_x = physical_index_of_first_negative_frequency.x;
 
-  cpu_image.physical_index_of_first_negative_frequency_y = physical_index_of_first_negative_frequency.y;
-  cpu_image.physical_index_of_first_negative_frequency_z = physical_index_of_first_negative_frequency.z;
 
-  cpu_image.logical_upper_bound_complex_x = logical_upper_bound_complex.x;
-  cpu_image.logical_upper_bound_complex_y = logical_upper_bound_complex.y;
-  cpu_image.logical_upper_bound_complex_z = logical_upper_bound_complex.z;
+	if (print_verbose) wxPrintf("Copying GPU memory to CPU memory.\n");
 
-  cpu_image.logical_lower_bound_complex_x = logical_lower_bound_complex.x;
-  cpu_image.logical_lower_bound_complex_y = logical_lower_bound_complex.y;
-  cpu_image.logical_lower_bound_complex_z = logical_lower_bound_complex.z;
-
-  cpu_image.logical_upper_bound_real_x = logical_upper_bound_real.x;
-  cpu_image.logical_upper_bound_real_y = logical_upper_bound_real.y;
-  cpu_image.logical_upper_bound_real_z = logical_upper_bound_real.z;
-
-  cpu_image.logical_lower_bound_real_x = logical_lower_bound_real.x;
-  cpu_image.logical_lower_bound_real_y = logical_lower_bound_real.y;
-  cpu_image.logical_lower_bound_real_z = logical_lower_bound_real.z;
-
-  cpu_image.is_in_real_space = is_in_real_space;
-
-  cpu_image.number_of_real_space_pixels = number_of_real_space_pixels;
-  cpu_image.object_is_centred_in_box = object_is_centred_in_box;
-
-  cpu_image.fourier_voxel_size_x = fourier_voxel_size.x;
-  cpu_image.fourier_voxel_size_y = fourier_voxel_size.y;
-  cpu_image.fourier_voxel_size_z = fourier_voxel_size.z;
-
-  cpu_image.insert_into_which_reconstruction = insert_into_which_reconstruction;
-
-  // cpu_image.real_values = real_values_gpu;
-
-  // cpu_image.complex_values = complex_values_gpu;
-
-  cpu_image.is_in_memory = is_in_memory;
-  //cpu_image.padding_jump_value = padding_jump_value;
-  cpu_image.image_memory_should_not_be_deallocated = image_memory_should_not_be_deallocated;
-
-  //cpu_image.real_memory_allocated = real_memory_allocated;
-  cpu_image.ft_normalization_factor = ft_normalization_factor;
-
-  CopyDeviceToHost(cpu_image, should_block_until_complete, free_gpu_memory);
-
-  cpu_image.is_in_memory = true;
-  cpu_image.is_in_real_space = is_in_real_space;
+	precheck
+	CopyDeviceToHost(cpu_image, should_block_until_complete, free_gpu_memory);
+	postcheck
+	cpu_image.is_in_memory = true;
+	cpu_image.is_in_real_space = is_in_real_space;
+	precheck
+	postcheck
+	Synchronize();
 }
 
 Image GpuImage::CopyDeviceToNewHost(bool should_block_until_complete, bool free_gpu_memory)
 {
   Image new_cpu_image;
-  new_cpu_image.Allocate(dims.x, dims.y, dims.z, true, false);
+  //new_cpu_image.Allocate(dims.x, dims.y, dims.z, true, false);
 
   //new_cpu_image.Allocate(dims.x,dims.y);
   CopyDeviceToNewHost(new_cpu_image, should_block_until_complete, free_gpu_memory);
@@ -1804,6 +1788,11 @@ void GpuImage::RecordAndWait()
 {
 	Record();
 	Wait();
+}
+void GpuImage::Synchronize() {
+	precheck
+	cudaErr(cudaStreamSynchronize(cudaStreamPerThread));
+	postcheck
 }
 
 void GpuImage::SwapRealSpaceQuadrants()
@@ -2393,28 +2382,31 @@ void GpuImage::SetCufftPlan(bool use_half_precision)
 void GpuImage::Deallocate()
 {
 
-  if (is_host_memory_pinned)
-	{
-		cudaErr(cudaHostUnregister(real_values));
-		is_host_memory_pinned = false;
-	} 
 	if (is_in_memory_gpu) 
 	{
+
 		cudaErr(cudaFree(real_values_gpu));
-		cudaErr(cudaFree(tmpVal));
-		cudaErr(cudaFree(tmpValComplex));
+
+		if (temp_vars_allocated) {
+			cudaErr(cudaFree(tmpVal));
+		
+			cudaErr(cudaFree(tmpValComplex));
+		
+		}
 		is_in_memory_gpu = false;
+
 	}	
 
-	BufferDestroy();
+	UnpinHost();
 
+	BufferDestroy();
 
   if (is_fft_planned)
   {
     cudaErr(cufftDestroy(cuda_plan_inverse));
     cudaErr(cufftDestroy(cuda_plan_forward));
     is_fft_planned = false;
-		is_set_complexConjMulLoad = false;
+	is_set_complexConjMulLoad = false;
   }
 
 //  if (is_cublas_loaded)
@@ -2533,7 +2525,7 @@ void GpuImage::Allocate(int wanted_x_size, int wanted_y_size, int wanted_z_size,
 
 	SetupInitialValues();
 	this->is_in_real_space = should_be_in_real_space;
-	dims.x = wanted_x_size; dims.y = wanted_y_size; dims.z = wanted_z_size;
+	//dims.x = wanted_x_size; dims.y = wanted_y_size; dims.z = wanted_z_size; // already doing in UpdateLoopingAndAddressing()
 
 	// if we got here we need to do allocation..
 
@@ -3047,6 +3039,7 @@ void GpuImage::Consume(GpuImage &temp_image) // copy the parameters then directl
   precheck
   cudaMallocManaged(&tmpVal, sizeof(float));
   cudaMallocManaged(&tmpValComplex, sizeof(double));
+  temp_vars_allocated = true;
   postcheck
 
   precheck
@@ -3118,4 +3111,69 @@ void GpuImage::ClipIntoFourierSpace(GpuImage *destination_image, float wanted_pa
   postcheck
   cudaStreamSynchronize(cudaStreamPerThread);
 
+}
+
+
+void GpuImage::PinRealSpaceMemoryHost() {
+	
+	if (!is_host_memory_pinned && real_values != nullptr) {
+		precheck
+		cudaHostRegister(real_values, sizeof(float)*real_memory_allocated, cudaHostRegisterDefault);
+		postcheck
+		precheck
+		cudaHostGetDevicePointer( &pinnedPtr, real_values, 0);
+		postcheck
+		is_host_memory_pinned = true;
+	}
+}
+void GpuImage::UnpinHost() {
+	return;
+	if (is_host_memory_pinned) {
+		precheck
+		if (pinnedPtr == nullptr) wxPrintf("nullptr\n");
+		cudaErr(cudaHostUnregister(pinnedPtr));
+		//cudaErr(cudaHostUnregister(real_values));
+		postcheck
+		is_host_memory_pinned = false;
+	}
+}
+
+void GpuImage::CopyRealSpaceMemoryFromDeviceToHost() {
+	MyAssertTrue(is_in_memory_gpu, "GPU memory not allocated.");
+	precheck
+	if (is_host_memory_pinned) {
+
+		cudaErr(cudaMemcpyAsync(pinnedPtr, real_values_gpu, sizeof(float)*real_memory_allocated, cudaMemcpyDeviceToHost, cudaStreamPerThread));
+	}
+	else {
+
+		cudaErr(cudaMemcpyAsync(real_values, real_values_gpu, sizeof(float)*real_memory_allocated, cudaMemcpyDeviceToHost, cudaStreamPerThread));
+	}
+	postcheck
+		
+}
+
+void GpuImage::CopyRealSpaceMemoryFromDeviceToHostAndSynchronize() {
+	precheck
+	CopyRealSpaceMemoryFromDeviceToHost();
+	postcheck
+	precheck
+	Synchronize();
+	postcheck
+}
+void GpuImage::CopyRealSpaceMemoryFromHostToDevice() {
+	if (is_host_memory_pinned) {
+			cudaErr(cudaMemcpyAsync( real_values_gpu, pinnedPtr, real_memory_allocated*sizeof(float),cudaMemcpyHostToDevice,cudaStreamPerThread));
+	}
+	else {
+			cudaErr(cudaMemcpyAsync( real_values_gpu, real_values, real_memory_allocated*sizeof(float),cudaMemcpyHostToDevice,cudaStreamPerThread));
+	}
+}
+void GpuImage::CopyRealSpaceMemoryFromHostToDeviceAndSynchronize() {
+	precheck
+	CopyRealSpaceMemoryFromHostToDevice();
+	postcheck
+	precheck
+	Synchronize();
+	postcheck
 }

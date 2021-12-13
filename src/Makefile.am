@@ -254,7 +254,9 @@ noinst_LIBRARIES += libgpucore.a
 libgpucore_a_SOURCES =       gpu/Histogram.cu \
                              gpu/TemplateMatchingCore.cu \
                              gpu/DeviceManager.cu \
-                             gpu/GpuImage.cu
+                             gpu/GpuImage.cu \
+                             gpu/CpuImageFragment.cu \
+                             gpu/TiledImage.cu
                             
 libgpucore_OBJECTS=$(libgpucore_a_SOURCES:.cu=.o)
 

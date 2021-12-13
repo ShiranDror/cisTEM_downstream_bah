@@ -1,10 +1,13 @@
 //#include <wx/wx.h>
 
 #include "../../core/core_headers.h"
+#include "shared/image_helpers.cpp"
 #include "0_Simple/disk_io_image.cpp"
 #ifdef ENABLEGPU
 #include "1_GPU_comparison/cpu_vs_gpu.cpp"
+#include "2_image_tiles/image_tiles_test.cpp"
 #endif
+
 
 #include "classes/TestFile.cpp"
 #include "classes/EmbeddedTestFile.cpp"
@@ -30,11 +33,14 @@ bool SamplesTestingApp::OnInit() {
 
   wxPrintf("Starting samples testing: \n\n");
   
-  DoDiskIOImageTests(hiv_images_80x80x10_filename, temp_directory);
+  DoDiskIOImageTests(hiv_image_80x80x1_filename, temp_directory);
 
   #ifdef ENABLEGPU
-  DoGPUComplexResize(hiv_image_80x80x1_filename, temp_directory);
-    //DoCPUvsGPUResize(hiv_image_80x80x1_filename, temp_directory);
+    DoCPUvsGPUResize(hiv_image_80x80x1_filename, temp_directory, true);
+
+    DoGPUComplexResize(hiv_image_80x80x1_filename, temp_directory, true);
+    
+    TestImageTiling(hiv_image_80x80x1_filename, temp_directory);
   #else
     wxPrintf("GPU support disabled. skipping GPU tests.\n");
   #endif
@@ -76,9 +82,5 @@ SamplesTestingApp::~SamplesTestingApp() {
 
   for(auto &it:testFiles) delete it;
   testFiles.clear();
-  // removeFile(hiv_image_80x80x1_filename.mb_str());
-  // removeFile(hiv_images_80x80x10_filename.mb_str());
-  // removeFile(sine_wave_128x128x1_filename.mb_str());
-  // removeFile(numeric_text_filename.mb_str());
   wxPrintf("done!\n");
 }
