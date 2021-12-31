@@ -1,7 +1,18 @@
+#ifndef VectorImage_H_
+#define VectorImage_H_
+
 class VectorImage {
     public:
-    VectorImage();
+    #pragma region public
 
+    #pragma region constructors
+    VectorImage();
+    VectorImage(const VectorImage &other_image)
+    ~VectorImage();
+
+    #pragma endregion constructors
+    VectorImage Clone();
+    #pragma endregion public
     protected:
     #pragma region protected
 
@@ -24,8 +35,18 @@ class VectorImage {
 
     #pragma region protected functions
     void SetupInitialValues();
+    void UpdateBoolsToDefault();
 
+    void UpdateLoopingAndAddressing(int wanted_x_size, int wanted_y_size, int wanted_z_size);
+    void UpdateLoopingAndAddressing(int3 wanted_size) { UpdateLoopingAndAddressing(wanted_size.x, wanted_size.y, wanted_size.z); }
+
+    void Allocate(int wanted_x_size, int wanted_y_size, int wanted_z_size, bool should_be_in_real_space);
+    void Allocate(int3 wanted_size, bool should_be_in_real_space) { Allocate(wanted_size.x, wanted_size.y, wanted_size.z, should_be_in_real_space); }
+
+    void Deallocate();
 
     #pragma endregion protected functions
     #pragma endregion protected
 }
+
+#endif /* VectorImage_H_ */
